@@ -5,14 +5,15 @@ import { SUPERMARKETS } from "@/lib/supermarketsData";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { FileText, ExternalLink, Search } from "lucide-react";
+import { FileText, ExternalLink, Search, MapPin } from "lucide-react";
 
 export function FlyersQuickAccess() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filter supermarkets based on search query
   const filteredSupermarkets = SUPERMARKETS.filter((supermarket) =>
-    supermarket.name.toLowerCase().includes(searchQuery.toLowerCase())
+    supermarket.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    supermarket.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleOpenFlyer = (url: string) => {
@@ -21,7 +22,7 @@ export function FlyersQuickAccess() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-3">
             <FileText className="h-7 w-7 text-primary" />
@@ -41,7 +42,7 @@ export function FlyersQuickAccess() {
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
-          placeholder="Cerca un punto vendita..."
+          placeholder="Cerca per nome o località..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -78,17 +79,25 @@ export function FlyersQuickAccess() {
 
               <div className="p-5 pt-6">
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1">
                     <div
-                      className="w-3 h-3 rounded-full"
+                      className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: supermarket.color }}
                     />
-                    <h3 className="font-bold text-lg group-hover:text-primary transition-colors">
+                    <h3 className="font-bold text-base group-hover:text-primary transition-colors line-clamp-2">
                       {supermarket.name}
                     </h3>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 ml-2" />
                 </div>
+
+                {/* Location Badge */}
+                {supermarket.location && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                    <MapPin className="h-3 w-3" />
+                    <span className="line-clamp-1">{supermarket.location}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
                   <FileText className="h-4 w-4" />
@@ -107,8 +116,7 @@ export function FlyersQuickAccess() {
       <Card className="p-4 bg-muted/30 border-dashed">
         <p className="text-sm text-muted-foreground text-center">
           💡 <strong>Suggerimento:</strong> I volantini si apriranno in una
-          nuova scheda del browser. Verifica la disponibilità dei PDF per ogni
-          punto vendita.
+          nuova scheda del browser. Cerca per nome o località per trovare il punto vendita più vicino.
         </p>
       </Card>
     </div>
