@@ -103,47 +103,32 @@ export default function DrivePage() {
     try {
       console.log("📤 Inizio upload file:", selectedFile.name);
 
-      // Step 1: Richiedi URL pre-firmato
-      const uploadUrlResponse = await fetch(
+      // Crea FormData per l'upload
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("fileName", selectedFile.name);
+      formData.append("mimeType", selectedFile.type);
+
+      // Upload del file
+      console.log("📤 Upload file in corso...");
+      const uploadResponse = await fetch(
         `/api/drive/upload?access_token=${accessToken}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fileName: selectedFile.name,
-            mimeType: selectedFile.type,
-          }),
+          body: formData,
+          // NON impostare Content-Type, il browser lo farà automaticamente con boundary
         }
       );
 
-      if (!uploadUrlResponse.ok) {
-        throw new Error("Impossibile ottenere URL di upload");
-      }
-
-      const { uploadUrl, fileId } = await uploadUrlResponse.json();
-      console.log("✅ URL upload ottenuto");
-
-      // Step 2: Upload del file
-      console.log("📤 Upload file in corso...");
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": selectedFile.type,
-        },
-        body: selectedFile,
-      });
-
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.error?.message || "Upload fallito");
+        throw new Error(errorData.error || errorData.details || "Upload fallito");
       }
 
       const uploadedFile = await uploadResponse.json();
-      console.log(`✅ File caricato con ID: ${uploadedFile.id}`);
+      console.log(`✅ File caricato con ID: ${uploadedFile.file?.id || uploadedFile.id}`);
 
-      // Step 3: Rendi il file pubblico
+      // Rendi il file pubblico
       console.log("🔓 Rendendo il file pubblico...");
       const publicResponse = await fetch(
         `/api/drive/make-public?access_token=${accessToken}`,
@@ -152,7 +137,9 @@ export default function DrivePage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ fileId: uploadedFile.id }),
+          body: JSON.stringify({ 
+            fileId: uploadedFile.file?.id || uploadedFile.id 
+          }),
         }
       );
 
