@@ -19,6 +19,7 @@ import {
   Search,
   ChevronsUpDown,
   Check,
+  Rocket,
 } from "lucide-react";
 import { VALID_SUPERMARKETS } from "@/lib/valid-supermarkets";
 import {
@@ -48,6 +49,15 @@ interface DriveFile {
   shareLink?: string;
 }
 
+interface ScrapingRequest {
+  id: string;
+  chainName: string;
+  fileCount: number;
+  status: "sending" | "sent" | "error";
+  timestamp: Date;
+  error?: string;
+}
+
 interface GenericScraperFormProps {
   files: DriveFile[];
 }
@@ -60,9 +70,8 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
   const [datePairs, setDatePairs] = useState<DatePair[]>([
     { id: crypto.randomUUID(), startDate: "", endDate: "" },
   ]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scrapingRequests, setScrapingRequests] = useState<ScrapingRequest[]>([]);
 
   // Format date from YYYY-MM-DD to DD-MM-YYYY
   const formatDateForAPI = (dateStr: string): string => {
@@ -144,7 +153,6 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
   // Submit scraping request
   const handleSubmit = async () => {
     setError(null);
-    setResult(null);
 
     // Validate
     const validationError = validateForm();
@@ -153,7 +161,18 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
       return;
     }
 
-    setIsProcessing(true);
+    // Create a new request tracker
+    const requestId = crypto.randomUUID();
+    const newRequest: ScrapingRequest = {
+      id: requestId,
+      chainName: selectedChain,
+      fileCount: selectedFiles.length,
+      status: "sending",
+      timestamp: new Date(),
+    };
+
+    // Add to requests list
+    setScrapingRequests((prev) => [newRequest, ...prev]);
 
     try {
       // Build Google Drive URLs
@@ -184,7 +203,7 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
 
       console.log("📤 Sending scraping request:", payload);
 
-      // Call API
+      // Call API (non-blocking)
       const response = await fetch(
         "https://server-supermarket-app.onrender.com/api/scrape/generic",
         {
@@ -199,18 +218,31 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        console.log("✅ Scraping completed:", data);
-        setResult(data);
+        console.log("✅ Scraping request sent successfully:", data);
+        
+        // Update request status to sent
+        setScrapingRequests((prev) =>
+          prev.map((req) =>
+            req.id === requestId ? { ...req, status: "sent" } : req
+          )
+        );
       } else {
-        throw new Error(data.error || "Errore durante lo scraping");
+        throw new Error(data.error || "Errore durante l'invio della richiesta");
       }
     } catch (err) {
       console.error("❌ Scraping error:", err);
-      setError(
-        err instanceof Error ? err.message : "Errore sconosciuto"
+      const errorMessage = err instanceof Error ? err.message : "Errore sconosciuto";
+      
+      // Update request status to error
+      setScrapingRequests((prev) =>
+        prev.map((req) =>
+          req.id === requestId
+            ? { ...req, status: "error", error: errorMessage }
+            : req
+        )
       );
-    } finally {
-      setIsProcessing(false);
+      
+      setError(errorMessage);
     }
   };
 
@@ -218,6 +250,30 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
   const filteredSupermarkets = VALID_SUPERMARKETS.filter((chain) =>
     chain.toLowerCase().includes(searchValue.toLowerCase())
   );
+
+  // Get status icon for requests
+  const getStatusIcon = (status: ScrapingRequest["status"]) => {
+    switch (status) {
+      case "sending":
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case "sent":
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case "error":
+        return <XCircle className="h-4 w-4 text-red-500" />;
+    }
+  };
+
+  // Get status text
+  const getStatusText = (status: ScrapingRequest["status"]) => {
+    switch (status) {
+      case "sending":
+        return "Invio in corso...";
+      case "sent":
+        return "Inviato - Controlla Telegram per il risultato";
+      case "error":
+        return "Errore nell'invio";
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -240,33 +296,70 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
               <p className="font-semibold text-destructive">Errore</p>
               <p className="text-sm text-destructive/90 mt-1">{error}</p>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-destructive hover:text-destructive"
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
           </div>
         </Card>
       )}
 
-      {/* Success Alert */}
-      {result && (
-        <Card className="border-green-500 bg-green-50 dark:bg-green-900/20 p-4">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold text-green-700 dark:text-green-400">
-                Scraping Completato!
-              </p>
-              <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                {result.message}
-              </p>
-              <div className="flex gap-4 mt-2 text-sm">
-                <Badge variant="secondary" className="bg-green-100 dark:bg-green-900">
-                  ✅ Successi: {result.successCount}
-                </Badge>
-                {result.errorCount > 0 && (
-                  <Badge variant="secondary" className="bg-red-100 dark:bg-red-900">
-                    ❌ Errori: {result.errorCount}
-                  </Badge>
+      {/* Scraping Requests History */}
+      {scrapingRequests.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <Rocket className="h-4 w-4" />
+              Richieste di Scraping ({scrapingRequests.length})
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setScrapingRequests([])}
+              className="h-7 text-xs"
+            >
+              Pulisci cronologia
+            </Button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {scrapingRequests.map((request) => (
+              <div
+                key={request.id}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border",
+                  request.status === "sent" && "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20",
+                  request.status === "sending" && "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20",
+                  request.status === "error" && "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
                 )}
+              >
+                {getStatusIcon(request.status)}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium uppercase">
+                      {request.chainName}
+                    </p>
+                    <Badge variant="secondary" className="text-xs">
+                      {request.fileCount} PDF
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {getStatusText(request.status)}
+                  </p>
+                  {request.error && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      {request.error}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {request.timestamp.toLocaleString("it-IT")}
+                  </p>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </Card>
       )}
@@ -500,21 +593,12 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
           <div className="pt-4 border-t">
             <Button
               onClick={handleSubmit}
-              disabled={isProcessing || !selectedChain || selectedFiles.length === 0}
+              disabled={!selectedChain || selectedFiles.length === 0}
               className="w-full"
               size="lg"
             >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Elaborazione in corso...
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-5 w-5" />
-                  Avvia Scraping
-                </>
-              )}
+              <Rocket className="mr-2 h-5 w-5" />
+              Avvia Nuovo Scraping
             </Button>
 
             {selectedChain && selectedFiles.length > 0 && (
@@ -543,8 +627,11 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
               <li>Imposta una coppia di date (inizio/fine offerta) per ogni PDF</li>
               <li>Avvia lo scraping per estrarre automaticamente i prodotti</li>
             </ol>
-            <p className="mt-2 text-xs">
-              ⚠️ Il processo può richiedere diversi minuti per completarsi.
+            <p className="mt-3 font-semibold text-green-700 dark:text-green-400">
+              ✅ Puoi inviare multiple richieste contemporaneamente!
+            </p>
+            <p className="mt-1 text-xs">
+              I risultati verranno notificati su Telegram. Puoi continuare a inviare nuove richieste mentre altre sono in elaborazione.
             </p>
           </div>
         </div>
