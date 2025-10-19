@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { GenericScraperForm } from "@/components/generic-scraper-form";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2,
   FileText,
@@ -17,6 +19,7 @@ import {
   Check,
   Link as LinkIcon,
   X,
+  Play,
 } from "lucide-react";
 
 interface DriveFile {
@@ -225,10 +228,10 @@ export default function DrivePage() {
         <div className="mb-8">
           <h2 className="text-3xl font-bold flex items-center gap-3">
             <HardDrive className="h-8 w-8 text-primary" />
-            Volantini su Google Drive
+            Gestione Volantini Drive
           </h2>
           <p className="text-muted-foreground mt-2">
-            Visualizza, carica e scarica i PDF dei volantini
+            Carica, visualizza e processa PDF dei volantini
           </p>
         </div>
 
@@ -270,132 +273,151 @@ export default function DrivePage() {
             </Button>
           </Card>
         ) : (
-          <>
-            {/* Upload Section */}
-            <Card className="p-6 mb-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Upload className="h-5 w-5 text-primary" />
-                Carica Nuovo Volantino PDF
-              </h3>
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <Input
-                    id="file-input"
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileSelect}
-                    disabled={uploading}
-                  />
-                  {selectedFile && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      File selezionato: {selectedFile.name}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || uploading}
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Caricamento...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Carica PDF
-                    </>
-                  )}
-                </Button>
-              </div>
-            </Card>
+          <Tabs defaultValue="files" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="files">
+                <FileText className="mr-2 h-4 w-4" />
+                Gestione File
+              </TabsTrigger>
+              <TabsTrigger value="scraping">
+                <Play className="mr-2 h-4 w-4" />
+                Scraping Generico
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Loading State */}
-            {loading ? (
-              <Card className="p-12 text-center">
-                <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-4" />
-                <p className="text-muted-foreground">
-                  Caricamento file da Google Drive...
-                </p>
+            {/* Tab: File Management */}
+            <TabsContent value="files" className="space-y-6">
+              {/* Upload Section */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Carica Nuovo Volantino PDF
+                </h3>
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <Input
+                      id="file-input"
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileSelect}
+                      disabled={uploading}
+                    />
+                    {selectedFile && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        File selezionato: {selectedFile.name}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Caricamento...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Carica PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
               </Card>
-            ) : (
-              <>
-                {/* Files List */}
-                {files.length === 0 ? (
-                  <Card className="p-12 text-center">
-                    <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">
-                      Nessun volantino trovato
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Carica il primo PDF per iniziare
-                    </p>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {files.map((file) => (
-                      <Card key={file.id} className="p-4">
-                        <div className="flex items-start gap-3">
-                          <FileText className="h-8 w-8 text-primary mt-1 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold truncate">
-                              {file.name}
-                            </h4>
-                            <div className="text-sm text-muted-foreground space-y-1 mt-2">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-3 w-3" />
-                                <span className="text-xs">
-                                  {formatDate(file.createdTime)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-3 w-3" />
-                                <span className="text-xs">
-                                  {formatFileSize(file.size)}
-                                </span>
+
+              {/* Loading State */}
+              {loading ? (
+                <Card className="p-12 text-center">
+                  <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-4" />
+                  <p className="text-muted-foreground">
+                    Caricamento file da Google Drive...
+                  </p>
+                </Card>
+              ) : (
+                <>
+                  {/* Files List */}
+                  {files.length === 0 ? (
+                    <Card className="p-12 text-center">
+                      <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-xl font-semibold mb-2">
+                        Nessun volantino trovato
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Carica il primo PDF per iniziare
+                      </p>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {files.map((file) => (
+                        <Card key={file.id} className="p-4">
+                          <div className="flex items-start gap-3">
+                            <FileText className="h-8 w-8 text-primary mt-1 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold truncate">
+                                {file.name}
+                              </h4>
+                              <div className="text-sm text-muted-foreground space-y-1 mt-2">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-3 w-3" />
+                                  <span className="text-xs">
+                                    {formatDate(file.createdTime)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-3 w-3" />
+                                  <span className="text-xs">
+                                    {formatFileSize(file.size)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Actions */}
-                        <div className="flex gap-2 mt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1"
-                            onClick={() =>
-                              window.open(file.webViewLink, "_blank")
-                            }
-                          >
-                            <Download className="mr-1 h-3 w-3" />
-                            Apri
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              copyToClipboard(
-                                file.id,
-                                getPublicShareLink(file.id)
-                              )
-                            }
-                          >
-                            {copiedId === file.id ? (
-                              <Check className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </>
+                          {/* Actions */}
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() =>
+                                window.open(file.webViewLink, "_blank")
+                              }
+                            >
+                              <Download className="mr-1 h-3 w-3" />
+                              Apri
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                copyToClipboard(
+                                  file.id,
+                                  getPublicShareLink(file.id)
+                                )
+                              }
+                            >
+                              {copiedId === file.id ? (
+                                <Check className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            {/* Tab: Generic Scraping */}
+            <TabsContent value="scraping">
+              <GenericScraperForm files={files} />
+            </TabsContent>
+          </Tabs>
         )}
       </main>
     </div>
