@@ -173,28 +173,30 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
         formatDateForAPI(pair.endDate)
       );
 
-      // Build payload
-      const payload = {
-        googleDriveUrls,
-        offerStartDates,
-        offerEndDates,
-        chainName: selectedChain,
-        storeName: selectedChain, // Same as chainName
-      };
+      // Build query parameters for GET request
+      const params = new URLSearchParams();
+      
+      // Add arrays to query params
+      googleDriveUrls.forEach((url) => params.append('googleDriveUrls', url));
+      offerStartDates.forEach((date) => params.append('offerStartDates', date));
+      offerEndDates.forEach((date) => params.append('offerEndDates', date));
+      
+      // Add single values
+      params.append('chainName', selectedChain);
+      params.append('storeName', selectedChain);
 
-      console.log("📤 Sending scraping request:", payload);
+      const queryString = params.toString();
+      const apiUrl = `https://server-supermarket-app.onrender.com/api/scrape/generic?${queryString}`;
 
-      // Call API
-      const response = await fetch(
-        "https://server-supermarket-app.onrender.com/api/scrape/generic",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      console.log("📤 Sending GET scraping request:", apiUrl);
+
+      // Call API with GET method
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+        },
+      });
 
       const data = await response.json();
 
