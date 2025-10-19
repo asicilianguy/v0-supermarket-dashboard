@@ -48,6 +48,8 @@
     "embla-carousel-react": "8.5.1",
     "gcp-metadata": "latest",
     "geist": "latest",
+    "google-auth-library": "latest",
+    "googleapis": "latest",
     "input-otp": "1.4.1",
     "kerberos": "latest",
     "lucide-react": "^0.454.0",
