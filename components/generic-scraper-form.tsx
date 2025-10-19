@@ -5,13 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
@@ -23,8 +16,25 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Search,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { VALID_SUPERMARKETS } from "@/lib/valid-supermarkets";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface DatePair {
   id: string;
@@ -44,6 +54,8 @@ interface GenericScraperFormProps {
 
 export function GenericScraperForm({ files }: GenericScraperFormProps) {
   const [selectedChain, setSelectedChain] = useState<string>("");
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [datePairs, setDatePairs] = useState<DatePair[]>([
     { id: crypto.randomUUID(), startDate: "", endDate: "" },
@@ -202,6 +214,11 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
     }
   };
 
+  // Filter supermarkets based on search
+  const filteredSupermarkets = VALID_SUPERMARKETS.filter((chain) =>
+    chain.toLowerCase().includes(searchValue.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -256,26 +273,87 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
 
       <Card className="p-6">
         <div className="space-y-6">
-          {/* Step 1: Select Chain */}
+          {/* Step 1: Select Chain with Combobox */}
           <div>
-            <Label htmlFor="chain-select" className="text-base font-semibold">
+            <Label className="text-base font-semibold">
               1. Seleziona Catena Supermercato
             </Label>
             <p className="text-sm text-muted-foreground mb-3">
-              Scegli il supermercato di cui vuoi processare i volantini
+              Cerca e scegli il supermercato di cui vuoi processare i volantini
             </p>
-            <Select value={selectedChain} onValueChange={setSelectedChain}>
-              <SelectTrigger id="chain-select" className="w-full">
-                <SelectValue placeholder="Seleziona supermercato..." />
-              </SelectTrigger>
-              <SelectContent>
-                {VALID_SUPERMARKETS.map((chain) => (
-                  <SelectItem key={chain} value={chain}>
-                    {chain.toUpperCase()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-full justify-between"
+                >
+                  {selectedChain ? (
+                    <span className="font-semibold uppercase">
+                      {selectedChain}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Cerca supermercato...
+                    </span>
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Cerca supermercato..."
+                    value={searchValue}
+                    onValueChange={setSearchValue}
+                  />
+                  <CommandList>
+                    <CommandEmpty>Nessun supermercato trovato.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredSupermarkets.map((chain) => (
+                        <CommandItem
+                          key={chain}
+                          value={chain}
+                          onSelect={(currentValue) => {
+                            setSelectedChain(
+                              currentValue === selectedChain ? "" : currentValue
+                            );
+                            setOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedChain === chain
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          <span className="uppercase font-medium">{chain}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            
+            {selectedChain && (
+              <div className="mt-2 flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  Selezionato: <strong className="ml-1 uppercase">{selectedChain}</strong>
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedChain("")}
+                  className="h-6 text-xs"
+                >
+                  Cambia
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Step 2: Select Files */}
@@ -311,7 +389,7 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
                       }`}
                     >
                       {selectedFiles.includes(file.id) && (
-                        <CheckCircle2 className="h-4 w-4 text-primary-foreground" />
+                        <Check className="h-3 w-3 text-primary-foreground" />
                       )}
                     </div>
                     <FileText className="h-5 w-5 text-muted-foreground" />
@@ -439,7 +517,7 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
               <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                 <p className="text-sm font-medium mb-2">📋 Riepilogo:</p>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Catena: <strong>{selectedChain.toUpperCase()}</strong></li>
+                  <li>• Catena: <strong className="uppercase">{selectedChain}</strong></li>
                   <li>• File da processare: <strong>{selectedFiles.length}</strong></li>
                   <li>• Coppie di date: <strong>{datePairs.length}</strong></li>
                 </ul>
@@ -456,7 +534,7 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
           <div className="text-sm text-blue-700 dark:text-blue-300">
             <p className="font-semibold mb-1">ℹ️ Come funziona:</p>
             <ol className="list-decimal list-inside space-y-1">
-              <li>Seleziona la catena di supermercati</li>
+              <li>Cerca e seleziona la catena di supermercati</li>
               <li>Scegli uno o più PDF da Google Drive</li>
               <li>Imposta una coppia di date (inizio/fine offerta) per ogni PDF</li>
               <li>Avvia lo scraping per estrarre automaticamente i prodotti</li>
