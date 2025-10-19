@@ -6,17 +6,17 @@ import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { 
-  Loader2, 
-  FileText, 
-  Download, 
-  Calendar, 
+import {
+  Loader2,
+  FileText,
+  Download,
+  Calendar,
   HardDrive,
   Upload,
   Copy,
   Check,
   Link as LinkIcon,
-  X
+  X,
 } from "lucide-react";
 
 interface DriveFile {
@@ -28,7 +28,7 @@ interface DriveFile {
   modifiedTime: string;
   webViewLink: string;
   thumbnailLink?: string;
-  shareLink?: string; // Link condivisione pubblica
+  shareLink?: string;
 }
 
 export default function DrivePage() {
@@ -83,17 +83,11 @@ export default function DrivePage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        setError('Seleziona solo file PDF');
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        setError('Il file non può superare i 50MB');
-        return;
-      }
+    if (file && file.type === "application/pdf") {
       setSelectedFile(file);
       setError(null);
+    } else {
+      setError("Seleziona un file PDF valido");
     }
   };
 
@@ -102,119 +96,90 @@ export default function DrivePage() {
 
     setUploading(true);
     setError(null);
-    setUploadSuccess(false);
 
     try {
-      console.log('📤 Inizio upload diretto a Google Drive...');
+      console.log("📤 Inizio upload file:", selectedFile.name);
 
-      // Step 1: Trova o crea la cartella "flyers"
-      const folderResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='flyers' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      // Step 1: Richiedi URL pre-firmato
+      const uploadUrlResponse = await fetch(
+        `/api/drive/upload?access_token=${accessToken}`,
         {
+          method: "POST",
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            fileName: selectedFile.name,
+            mimeType: selectedFile.type,
+          }),
         }
       );
 
-      const folderData = await folderResponse.json();
-      let folderId: string;
-
-      if (folderData.files && folderData.files.length > 0) {
-        folderId = folderData.files[0].id;
-        console.log(`✅ Cartella "flyers" trovata: ${folderId}`);
-      } else {
-        // Crea la cartella
-        console.log('📁 Creazione cartella "flyers"...');
-        const createFolderResponse = await fetch(
-          'https://www.googleapis.com/drive/v3/files',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: 'flyers',
-              mimeType: 'application/vnd.google-apps.folder',
-            }),
-          }
-        );
-        const newFolder = await createFolderResponse.json();
-        folderId = newFolder.id;
-        console.log(`✅ Cartella "flyers" creata: ${folderId}`);
+      if (!uploadUrlResponse.ok) {
+        throw new Error("Impossibile ottenere URL di upload");
       }
 
-      // Step 2: Upload del file usando multipart upload
-      const metadata = {
-        name: selectedFile.name,
-        parents: [folderId],
-        mimeType: 'application/pdf',
-      };
+      const { uploadUrl, fileId } = await uploadUrlResponse.json();
+      console.log("✅ URL upload ottenuto");
 
-      const formData = new FormData();
-      formData.append(
-        'metadata',
-        new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-      );
-      formData.append('file', selectedFile);
-
-      console.log(`📤 Upload file: ${selectedFile.name} (${selectedFile.size} bytes)`);
-
-      const uploadResponse = await fetch(
-        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,createdTime',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: formData,
-        }
-      );
+      // Step 2: Upload del file
+      console.log("📤 Upload file in corso...");
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": selectedFile.type,
+        },
+        body: selectedFile,
+      });
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.error?.message || 'Upload fallito');
+        throw new Error(errorData.error?.message || "Upload fallito");
       }
 
       const uploadedFile = await uploadResponse.json();
       console.log(`✅ File caricato con ID: ${uploadedFile.id}`);
 
       // Step 3: Rendi il file pubblico
-      console.log('🔓 Rendendo il file pubblico...');
+      console.log("🔓 Rendendo il file pubblico...");
       const publicResponse = await fetch(
         `/api/drive/make-public?access_token=${accessToken}`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ fileId: uploadedFile.id }),
         }
       );
 
       if (!publicResponse.ok) {
-        console.warn('⚠️ Impossibile rendere il file pubblico, ma upload completato');
+        console.warn(
+          "⚠️ Impossibile rendere il file pubblico, ma upload completato"
+        );
       } else {
-        console.log('✅ File reso pubblico');
+        console.log("✅ File reso pubblico");
       }
 
       setUploadSuccess(true);
       setSelectedFile(null);
-      
+
       // Reset input file
-      const fileInput = document.getElementById('file-input') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      
+      const fileInput = document.getElementById(
+        "file-input"
+      ) as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+
       // Refresh file list dopo 1 secondo
       setTimeout(() => {
         fetchFiles(accessToken);
         setUploadSuccess(false);
       }, 1500);
-
     } catch (err) {
-      console.error('❌ Errore upload:', err);
-      setError(err instanceof Error ? err.message : 'Errore durante l\'upload');
+      console.error("❌ Errore upload:", err);
+      setError(
+        err instanceof Error ? err.message : "Errore durante l'upload"
+      );
     } finally {
       setUploading(false);
     }
@@ -226,8 +191,8 @@ export default function DrivePage() {
       setCopiedId(fileId);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
-      console.error('Errore nella copia:', err);
-      setError('Impossibile copiare il link');
+      console.error("Errore nella copia:", err);
+      setError("Impossibile copiare il link");
     }
   };
 
@@ -240,7 +205,7 @@ export default function DrivePage() {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   const formatDate = (dateString: string): string => {
@@ -272,11 +237,7 @@ export default function DrivePage() {
           <Card className="border-destructive bg-destructive/10 p-4 mb-6">
             <div className="flex items-center justify-between">
               <p className="text-destructive font-medium">⚠️ {error}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setError(null)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setError(null)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -292,211 +253,149 @@ export default function DrivePage() {
           </Card>
         )}
 
-        {/* Login Button */}
-        {!accessToken && (
-          <Card className="p-8 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <HardDrive className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold">Accedi a Google Drive</h3>
-              <p className="text-muted-foreground">
-                Autorizza l'accesso al tuo Google Drive per visualizzare e caricare volantini
-              </p>
-              <Button onClick={handleLogin} size="lg" className="mt-4">
-                🔐 Accedi con Google
-              </Button>
-            </div>
+        {/* Login Required State */}
+        {!accessToken ? (
+          <Card className="p-12 text-center">
+            <HardDrive className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold mb-2">
+              Accedi a Google Drive
+            </h3>
+            <p className="text-muted-foreground mb-6">
+              Connetti il tuo account Google per visualizzare e gestire i
+              volantini PDF
+            </p>
+            <Button onClick={handleLogin} size="lg">
+              <LinkIcon className="mr-2 h-4 w-4" />
+              Accedi con Google
+            </Button>
           </Card>
-        )}
-
-        {/* Upload Form */}
-        {accessToken && !loading && (
-          <Card className="p-6 mb-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
+        ) : (
+          <>
+            {/* Upload Section */}
+            <Card className="p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Upload className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold">Carica Nuovo Volantino</h3>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4">
+                Carica Nuovo Volantino PDF
+              </h3>
+              <div className="flex gap-4 items-end">
                 <div className="flex-1">
                   <Input
                     id="file-input"
                     type="file"
-                    accept="application/pdf"
+                    accept=".pdf"
                     onChange={handleFileSelect}
                     disabled={uploading}
-                    className="cursor-pointer"
                   />
                   {selectedFile && (
                     <p className="text-sm text-muted-foreground mt-2">
-                      📄 {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                      File selezionato: {selectedFile.name}
                     </p>
                   )}
                 </div>
-                
                 <Button
                   onClick={handleUpload}
                   disabled={!selectedFile || uploading}
-                  className="sm:w-auto w-full"
                 >
                   {uploading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Caricamento...
                     </>
                   ) : (
                     <>
-                      <Upload className="h-4 w-4 mr-2" />
+                      <Upload className="mr-2 h-4 w-4" />
                       Carica PDF
                     </>
                   )}
                 </Button>
               </div>
+            </Card>
 
-              <p className="text-xs text-muted-foreground">
-                ℹ️ I file verranno caricati nella cartella "flyers" e resi pubblici automaticamente. Max 50MB.
-              </p>
-            </div>
-          </Card>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        )}
-
-        {/* Files Grid */}
-        {accessToken && !loading && files.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-muted-foreground">
-                Trovati <strong>{files.length}</strong> volantini
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchFiles(accessToken)}
-                disabled={loading}
-              >
-                🔄 Ricarica
-              </Button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {files.map((file) => {
-                const publicLink = getPublicShareLink(file.id);
-                const isCopied = copiedId === file.id;
-
-                return (
-                  <Card key={file.id} className="p-4 hover:shadow-lg transition-shadow">
-                    <div className="space-y-3">
-                      {/* File Icon */}
-                      <div className="flex items-start justify-between">
-                        <div className="h-12 w-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
-                          <FileText className="h-6 w-6 text-red-600 dark:text-red-400" />
+            {/* Loading State */}
+            {loading ? (
+              <Card className="p-12 text-center">
+                <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">
+                  Caricamento file da Google Drive...
+                </p>
+              </Card>
+            ) : (
+              <>
+                {/* Files List */}
+                {files.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">
+                      Nessun volantino trovato
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Carica il primo PDF per iniziare
+                    </p>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {files.map((file) => (
+                      <Card key={file.id} className="p-4">
+                        <div className="flex items-start gap-3">
+                          <FileText className="h-8 w-8 text-primary mt-1 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold truncate">
+                              {file.name}
+                            </h4>
+                            <div className="text-sm text-muted-foreground space-y-1 mt-2">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-3 w-3" />
+                                <span className="text-xs">
+                                  {formatDate(file.createdTime)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-3 w-3" />
+                                <span className="text-xs">
+                                  {formatFileSize(file.size)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <a
-                          href={file.webViewLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Apri su Drive
-                        </a>
-                      </div>
 
-                      {/* File Name */}
-                      <div>
-                        <h3 className="font-semibold text-sm truncate" title={file.name}>
-                          {file.name}
-                        </h3>
-                      </div>
-
-                      {/* File Info */}
-                      <div className="space-y-2 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <HardDrive className="h-3 w-3" />
-                          <span>{formatFileSize(file.size)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDate(file.modifiedTime)}</span>
-                        </div>
-                      </div>
-
-                      {/* Public Link */}
-                      <div className="pt-2 border-t space-y-2">
-                        <div className="flex items-center gap-2">
-                          <LinkIcon className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Link Pubblico:
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          <Input
-                            value={publicLink}
-                            readOnly
-                            className="text-xs h-8"
-                            onClick={(e) => e.currentTarget.select()}
-                          />
+                        {/* Actions */}
+                        <div className="flex gap-2 mt-4">
                           <Button
-                            variant={isCopied ? "default" : "outline"}
+                            variant="outline"
                             size="sm"
-                            onClick={() => copyToClipboard(file.id, publicLink)}
-                            className="shrink-0"
+                            className="flex-1"
+                            onClick={() =>
+                              window.open(file.webViewLink, "_blank")
+                            }
                           >
-                            {isCopied ? (
-                              <Check className="h-4 w-4" />
+                            <Download className="mr-1 h-3 w-3" />
+                            Apri
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              copyToClipboard(
+                                file.id,
+                                getPublicShareLink(file.id)
+                              )
+                            }
+                          >
+                            {copiedId === file.id ? (
+                              <Check className="h-4 w-4 text-green-500" />
                             ) : (
                               <Copy className="h-4 w-4" />
                             )}
                           </Button>
                         </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="pt-2 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          asChild
-                        >
-                          <a
-                            href={file.webViewLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Visualizza PDF
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {accessToken && !loading && files.length === 0 && (
-          <Card className="p-12 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold">Nessun volantino trovato</h3>
-              <p className="text-muted-foreground">
-                Carica il tuo primo volantino usando il form qui sopra
-              </p>
-            </div>
-          </Card>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </main>
     </div>

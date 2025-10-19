@@ -1,4 +1,5 @@
-import { Store } from "lucide-react"
+import { Store } from "lucide-react";
+import { Navigation } from "./navigation";
 
 export function DashboardHeader() {
   return (
@@ -9,13 +10,18 @@ export function DashboardHeader() {
             <Store className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Scraping Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Scraping Dashboard
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Monitora lo stato dei supermercati per pianificare lo scraping
+              Monitora supermercati e gestisci volantini
             </p>
           </div>
         </div>
       </div>
+      
+      {/* Navigation Bar */}
+      <Navigation />
     </header>
-  )
+  );
 }
