@@ -188,7 +188,7 @@ export function GenericScraperForm({ files }: GenericScraperFormProps) {
       const response = await fetch(
         "https://server-supermarket-app.onrender.com/api/scrape/generic",
         {
-          method: "POST",
+          method: "GET",
           headers: {
             "Content-Type": "application/json",
           },
