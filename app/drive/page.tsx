@@ -28,6 +28,7 @@ interface DriveFile {
   modifiedTime: string;
   webViewLink: string;
   thumbnailLink?: string;
+  shareLink?: string; // Link condivisione pubblica
 }
 
 export default function DrivePage() {
@@ -148,8 +149,8 @@ export default function DrivePage() {
     }
   };
 
-  const getPublicDownloadLink = (fileId: string) => {
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const getPublicShareLink = (fileId: string) => {
+    return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -305,7 +306,7 @@ export default function DrivePage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {files.map((file) => {
-                const publicLink = getPublicDownloadLink(file.id);
+                const publicLink = getPublicShareLink(file.id);
                 const isCopied = copiedId === file.id;
 
                 return (

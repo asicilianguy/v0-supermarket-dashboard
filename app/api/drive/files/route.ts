@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       modifiedTime: file.modifiedTime,
       webViewLink: file.webViewLink,
       thumbnailLink: file.thumbnailLink,
+      shareLink: `https://drive.google.com/file/d/${file.id}/view?usp=sharing`, // Link condivisione
     }));
 
     return NextResponse.json({
