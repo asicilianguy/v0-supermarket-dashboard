@@ -105,34 +105,116 @@ export default function DrivePage() {
     setUploadSuccess(false);
 
     try {
+      console.log('📤 Inizio upload diretto a Google Drive...');
+
+      // Step 1: Trova o crea la cartella "flyers"
+      const folderResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='flyers' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const folderData = await folderResponse.json();
+      let folderId: string;
+
+      if (folderData.files && folderData.files.length > 0) {
+        folderId = folderData.files[0].id;
+        console.log(`✅ Cartella "flyers" trovata: ${folderId}`);
+      } else {
+        // Crea la cartella
+        console.log('📁 Creazione cartella "flyers"...');
+        const createFolderResponse = await fetch(
+          'https://www.googleapis.com/drive/v3/files',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: 'flyers',
+              mimeType: 'application/vnd.google-apps.folder',
+            }),
+          }
+        );
+        const newFolder = await createFolderResponse.json();
+        folderId = newFolder.id;
+        console.log(`✅ Cartella "flyers" creata: ${folderId}`);
+      }
+
+      // Step 2: Upload del file usando multipart upload
+      const metadata = {
+        name: selectedFile.name,
+        parents: [folderId],
+        mimeType: 'application/pdf',
+      };
+
       const formData = new FormData();
+      formData.append(
+        'metadata',
+        new Blob([JSON.stringify(metadata)], { type: 'application/json' })
+      );
       formData.append('file', selectedFile);
 
-      const response = await fetch(`/api/drive/upload?access_token=${accessToken}`, {
-        method: 'POST',
-        body: formData,
-      });
+      console.log(`📤 Upload file: ${selectedFile.name} (${selectedFile.size} bytes)`);
 
-      const data = await response.json();
+      const uploadResponse = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,createdTime',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        }
+      );
 
-      if (data.success) {
-        setUploadSuccess(true);
-        setSelectedFile(null);
-        // Reset input file
-        const fileInput = document.getElementById('file-input') as HTMLInputElement;
-        if (fileInput) fileInput.value = '';
-        
-        // Refresh file list dopo 1 secondo
-        setTimeout(() => {
-          fetchFiles(accessToken);
-          setUploadSuccess(false);
-        }, 1500);
-      } else {
-        setError(data.error || 'Errore durante l\'upload');
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error?.message || 'Upload fallito');
       }
+
+      const uploadedFile = await uploadResponse.json();
+      console.log(`✅ File caricato con ID: ${uploadedFile.id}`);
+
+      // Step 3: Rendi il file pubblico
+      console.log('🔓 Rendendo il file pubblico...');
+      const publicResponse = await fetch(
+        `/api/drive/make-public?access_token=${accessToken}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fileId: uploadedFile.id }),
+        }
+      );
+
+      if (!publicResponse.ok) {
+        console.warn('⚠️ Impossibile rendere il file pubblico, ma upload completato');
+      } else {
+        console.log('✅ File reso pubblico');
+      }
+
+      setUploadSuccess(true);
+      setSelectedFile(null);
+      
+      // Reset input file
+      const fileInput = document.getElementById('file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      
+      // Refresh file list dopo 1 secondo
+      setTimeout(() => {
+        fetchFiles(accessToken);
+        setUploadSuccess(false);
+      }, 1500);
+
     } catch (err) {
-      setError('Errore di connessione durante l\'upload');
-      console.error(err);
+      console.error('❌ Errore upload:', err);
+      setError(err instanceof Error ? err.message : 'Errore durante l\'upload');
     } finally {
       setUploading(false);
     }

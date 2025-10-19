@@ -252,3 +252,26 @@ export function getPublicShareLink(fileId: string): string {
 export function getPublicDownloadLink(fileId: string): string {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
+
+/**
+ * Rende un file pubblico (reader per anyone)
+ */
+export async function makeFilePublic(accessToken: string, fileId: string) {
+  const drive = getDriveClient(accessToken);
+
+  try {
+    await drive.permissions.create({
+      fileId: fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+
+    console.log(`✅ File ${fileId} reso pubblico`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Errore nel rendere il file pubblico:', error);
+    throw error;
+  }
+}
